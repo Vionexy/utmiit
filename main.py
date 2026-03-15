@@ -661,7 +661,7 @@ async def cb_all(call):
 
         elif data == "mailing":
             subbed = await check_sub(cid)
-            txt = "Вы подписаны✅" if subbed else "Вы не подписаны❎"
+            txt = "Вы подписаны✅" if subbed else "Вы не подписаны"
             await bot.edit_message_text(chat_id=cid, message_id=call.message.message_id,
                                         text=txt, reply_markup=menu_mail(subbed))
 
@@ -681,7 +681,7 @@ async def cb_all(call):
         elif data == "unsub":
             await del_sub(cid)
             await bot.edit_message_text(chat_id=cid, message_id=call.message.message_id,
-                                        text="Вы не подписаны❎", reply_markup=menu_mail(False))
+                                        text="Вы не подписаны", reply_markup=menu_mail(False))
 
         elif data == "main":
             admin = cid == ADMIN_ID
