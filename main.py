@@ -773,7 +773,7 @@ async def main():
 async def keep_api_alive():
     """Раз в 12 минут стучится в API на Render, чтобы тот не заснул."""
     # Замени на свою реальную ссылку от Render
-    api_url = "https://utmiitapp.onrender.com/health"
+    api_url = "https://utmiitbot.onrender.com/health"
 
     while True:
         try:
