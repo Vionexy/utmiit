@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Расписание</title>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="Расписание"/>
+  <meta name="theme-color" content="#3478f6"/>
+  <link rel="manifest" href="manifest.json"/>
+
+  <link rel="apple-touch-icon" href="icon-512.png"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+
+    :root {
+      --bg: #f2f2f7; --surf: #fff; --surf2: #e5e5ea;
+      --text: #1c1c1e; --sub: #636366;
+      --acc: #3478f6; --acct: #fff;
+      --danger: #ff3b30; --ok: #34c759;
+      --brd: rgba(0,0,0,.08); --shad: 0 2px 16px rgba(0,0,0,.07);
+    }
+    [data-theme="dark"] {
+      --bg: #000; --surf: #1c1c1e; --surf2: #2c2c2e;
+      --text: #fff; --sub: #8e8e93;
+      --brd: rgba(255,255,255,.08); --shad: 0 2px 16px rgba(0,0,0,.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { display: none; }
+    body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; overscroll-behavior: none; transition: background .2s, color .2s; }
+    #app { max-width: 520px; margin: 0 auto; padding: 0 14px 90px; }
+
+    .card { background: var(--surf); border-radius: 18px; box-shadow: var(--shad); overflow: hidden; }
+    .row  { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; cursor: pointer; }
+    .row:not(:last-child) { border-bottom: 1px solid var(--brd); }
+    .row:active { opacity: .6; }
+    .row-left { display: flex; align-items: center; gap: 14px; }
+    .row-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .row-icon svg { width: 20px; height: 20px; }
+    .row-icon.blue  { background: rgba(52,120,246,.15); color: var(--acc); }
+    .row-icon.green { background: rgba(52,199,89,.15);  color: var(--ok); }
+    .row-icon.orange{ background: rgba(255,149,0,.15);  color: #ff9500; }
+    .row-title { font-weight: 800; font-size: 15px; }
+    .row-sub   { font-size: 12px; font-weight: 600; color: var(--sub); margin-top: 1px; }
+    .chevron   { color: var(--sub); opacity: .5; }
+    .chevron svg { width: 16px; height: 16px; }
+
+    .ibtn { width: 36px; height: 36px; border-radius: 50%; background: var(--surf); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shad); color: var(--text); transition: transform .15s; position: relative; }
+    .ibtn:active { transform: scale(.88); }
+    .ibtn svg { width: 17px; height: 17px; }
+    .badge { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); border: 2px solid var(--bg); display: none; }
+    .badge.on { display: block; }
+
+    .sbtn { background: var(--acc); color: var(--acct); border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; padding: 12px; cursor: pointer; width: 100%; margin-top: 10px; transition: opacity .15s; }
+    .sbtn:active { opacity: .8; }
+
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 0 14px; }
+    .topbar h1 { font-size: 24px; font-weight: 900; letter-spacing: -.5px; }
+    .topbar .sub { font-size: 12px; font-weight: 600; color: var(--sub); margin-top: 2px; }
+    .tr { display: flex; gap: 8px; margin-top: 4px; }
+
+    .bnav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surf); border-top: 1px solid var(--brd); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom, 6px); }
+    .nb { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 4px; gap: 3px; cursor: pointer; font-size: 10px; font-weight: 800; color: var(--sub); transition: color .15s; border: none; background: none; font-family: 'Nunito', sans-serif; }
+    .nb svg { width: 22px; height: 22px; }
+    .nb .dot { width: 4px; height: 4px; border-radius: 50%; background: transparent; margin-top: 1px; }
+    .nb.active { color: var(--acc); }
+    .nb.active .dot { background: var(--acc); }
+
+    .page { display: none; }
+    .page.active { display: block; animation: up .2s ease; }
+    @keyframes up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .pwa-banner {
+      position: fixed;
+      left: 50%;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px);
+      transform: translateX(-50%);
+      z-index: 350;
+      width: calc(100vw - 24px);
+      max-width: 420px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--surf);
+      border: 1px solid var(--brd);
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.14);
+    }
+    .pwa-text { flex: 1; font-weight: 800; font-size: 12px; line-height: 1.2; }
+    .pwa-sub { font-size: 11px; color: var(--sub); margin-top: 2px; font-weight: 700; }
+    .pwa-install { border: none; background: var(--acc); color: var(--acct); border-radius: 10px; padding: 7px 10px; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 12px; cursor: pointer; }
+    .pwa-close { border: 1px solid var(--brd); background: transparent; color: var(--sub); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; }
+
+    .dgrid { display: grid; grid-template-columns: repeat(6,1fr); gap: 7px; margin-bottom: 18px; }
+    .dbn { background: var(--surf); color: var(--sub); border: none; border-radius: 12px; padding: 11px 0 9px; cursor: pointer; font-family: 'Nunito',sans-serif; font-weight: 800; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 5px; box-shadow: var(--shad); transition: background .15s, color .15s, transform .1s; }
+    .dbn .dot { width: 5px; height: 5px; border-radius: 50%; background: transparent; }
+    .dbn.today .dot { background: var(--danger); }
+    .dbn.active { background: var(--acc); color: var(--acct); box-shadow: 0 4px 16px rgba(52,120,246,.38); }
+    .dbn.active .dot { background: rgba(255,255,255,.55); }
+    .dbn:active { transform: scale(.92); }
+
+    @keyframes shimmer { to { background-position: 600px 0; } }
+    .skel { border-radius: 10px; background: linear-gradient(90deg, var(--surf2) 25%, var(--brd) 37%, var(--surf2) 63%); background-size: 600px 100%; animation: shimmer 1.3s infinite linear; }
+    .empty-s { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 0; color: var(--sub); font-weight: 700; font-size: 15px; }
+    .empty-s svg { width: 52px; height: 52px; opacity: .35; }
+    .err-box { background: rgba(255,59,48,.1); border: 1px solid rgba(255,59,48,.25); border-radius: 12px; padding: 12px; color: var(--danger); font-weight: 700; font-size: 14px; text-align: center; }
+    #pages img { width: 100%; border-radius: 10px; display: block; margin-bottom: 10px; cursor: zoom-in; transition: opacity .15s; }
+    #pages img:active { opacity: .85; }
+
+    #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 500; align-items: center; justify-content: center; cursor: zoom-out; }
+    #lightbox.open { display: flex; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    #lightbox img { max-width: 100%; max-height: 100dvh; object-fit: contain; border-radius: 4px; pointer-events: none; }
+    .prog-bg { width: 100%; height: 4px; background: var(--surf2); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .prog-fill { height: 4px; background: var(--acc); border-radius: 4px; width: 0; transition: width .2s; }
+    .dlnk { display: none; padding: 10px; text-align: center; font-size: 13px; font-weight: 700; color: var(--acc); text-decoration: none; border-top: 1px solid var(--brd); }
+
+    .pills { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+    .pills::-webkit-scrollbar { display: none; }
+    .pill { background: var(--surf); border: none; border-radius: 20px; padding: 8px 14px; font-family: 'Nunito',sans-serif; font-weight: 800; font-size: 13px; color: var(--sub); cursor: pointer; white-space: nowrap; box-shadow: var(--shad); transition: all .2s ease; }
+    .pill.active { background: var(--acc); color: var(--acct); box-shadow: 0 4px 12px rgba(52,120,246,.3); }
+    .pill:active { transform: scale(0.95); }
+    .cl-list { display: flex; flex-direction: column; }
+    .cl-item { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--brd); position: relative; }
+    .cl-num { position: absolute; left: 12px; width: 30px; height: 30px; border-radius: 10px; background: rgba(52,120,246,.12); color: var(--acc); font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .cl-times { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; width: 100%; padding-left: 42px; }
+    .cl-part-l { display: flex; flex-direction: column; gap: 1px; align-items: flex-start; }
+    .cl-part-r { display: flex; flex-direction: column; gap: 1px; align-items: flex-end; text-align: right; }
+    .cl-t { font-size: 14px; font-weight: 800; letter-spacing: -0.2px; white-space: nowrap; }
+    .cl-s { font-size: 11px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+    .cl-mid { display: flex; align-items: center; justify-content: center; }
+    .cl-dash { width: 10px; height: 2px; background: var(--surf2); border-radius: 2px; }
+    .cl-meal { font-size: 11px; font-weight: 800; color: #ff9500; background: rgba(255,149,0,.15); border-radius: 6px; padding: 3px 7px; white-space: nowrap; }
+    .cl-break { padding: 8px 12px; font-size: 12px; font-weight: 800; color: var(--sub); background: var(--bg); border-bottom: 1px solid var(--brd); display: flex; justify-content: center; align-items: center; text-align: center; }
+    .cl-list > :last-child { border-bottom: none; }
+
+    .slabel { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--sub); margin-bottom: 8px; }
+    textarea { width: 100%; background: var(--bg); color: var(--text); border: 1.5px solid var(--brd); border-radius: 12px; padding: 12px; font-family: 'Nunito',sans-serif; font-size: 15px; font-weight: 600; resize: none; outline: none; transition: border-color .15s; }
+    textarea:focus { border-color: var(--acc); }
+    select { background: var(--bg); color: var(--text); border: 1.5px solid var(--brd); border-radius: 10px; padding: 7px 10px; font-family: 'Nunito',sans-serif; font-weight: 700; font-size: 14px; outline: none; flex: 1; }
+    .nitem { padding: 12px 14px; border-bottom: 1px solid var(--brd); }
+    .nitem:last-child { border-bottom: none; }
+    .ntag { font-size: 11px; font-weight: 800; color: var(--acc); text-transform: uppercase; letter-spacing: .06em; }
+    .ntxt { font-size: 14px; font-weight: 600; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+    .dbtn { background: none; border: none; cursor: pointer; color: var(--sub); font-size: 16px; padding: 2px 4px; }
+
+    .toggle { width: 51px; height: 31px; border-radius: 16px; background: var(--surf2); position: relative; transition: background .2s; flex-shrink: 0; }
+    .toggle .thumb { position: absolute; top: 3px; left: 3px; width: 25px; height: 25px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .2s; }
+    .toggle.on { background: var(--acc); }
+    .toggle.on .thumb { transform: translateX(20px); }
+    .overlay.open
+
+    #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(16px); background: #1c1c1e; color: #fff; border-radius: 30px; padding: 10px 22px; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s; white-space: nowrap; z-index: 999; }
+    #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div id="page-schedule" class="page active">
+    <div class="topbar">
+      <div><h1>📚Расписание</h1><div class="sub" id="date-line"></div></div>
+      <div class="tr">
+        <button class="ibtn" onclick="setPage('notes')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>
+          <span class="badge" id="notes-badge"></span>
+        </button>
+        <button class="ibtn" id="theme-btn" onclick="toggleTheme()">
+          <svg id="theme-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="slabel">День недели</div>
+    <div class="dgrid">
+      <button class="dbn" data-day="monday"    onclick="selectDay('monday')">   <span>Пн</span><span class="dot"></span></button>
+      <button class="dbn" data-day="tuesday"   onclick="selectDay('tuesday')">  <span>Вт</span><span class="dot"></span></button>
+      <button class="dbn" data-day="wednesday" onclick="selectDay('wednesday')"><span>Ср</span><span class="dot"></span></button>
+      <button class="dbn" data-day="thursday"  onclick="selectDay('thursday')"> <span>Чт</span><span class="dot"></span></button>
+      <button class="dbn" data-day="friday"    onclick="selectDay('friday')">   <span>Пт</span><span class="dot"></span></button>
+      <button class="dbn" data-day="saturday"  onclick="selectDay('saturday')"> <span>Сб</span><span class="dot"></span></button>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div id="img-area" style="padding:12px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div class="empty-s" id="st-empty">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/><path d="M8 2v4M16 2v4"/></svg>
+          <span>Выберите день</span>
+        </div>
+        <div class="skel" id="st-skel" style="width:100%;height:320px;display:none;"></div>
+        <div id="st-prog" style="display:none;width:100%;">
+          <div class="skel" style="width:100%;height:280px;"></div>
+          <div class="prog-bg"><div class="prog-fill" id="prog-fill"></div></div>
+          <div id="prog-txt" style="font-size:11px;font-weight:700;color:var(--sub);text-align:center;margin-top:5px;"></div>
+        </div>
+        <div id="st-err" style="display:none;width:100%;">
+          <div class="err-box" id="err-msg">Ошибка</div>
+          <button class="sbtn" onclick="retryLoad()">↺ Повторить</button>
+        </div>
+        <div id="pages" style="display:none;width:100%;"></div>
+      </div>
+      <a id="dlnk" class="dlnk" href="#" target="_blank">Открыть в Google Drive ↗</a>
+    </div>
+  </div>
+
+  <div id="page-notes" class="page">
+    <div class="topbar">
+      <div><h1>📝Заметки</h1><div class="sub">Сохраняются на устройстве</div></div>
+      <div class="tr"><button class="ibtn" onclick="setPage('schedule')"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button></div>
+    </div>
+    <div class="card" style="padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;font-weight:800;color:var(--sub);">День:</span>
+        <select id="note-day" onchange="loadNote(this.value)">
+          <option value="monday">Понедельник</option><option value="tuesday">Вторник</option>
+          <option value="wednesday">Среда</option><option value="thursday">Четверг</option>
+          <option value="friday">Пятница</option><option value="saturday">Суббота</option>
+          <option value="general">Общая</option>
+        </select>
+      </div>
+      <textarea id="note-ta" rows="5" placeholder="Домашнее задание, важные даты…" oninput="onNoteInput()"></textarea>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+        <span id="note-chars" style="font-size:12px;font-weight:700;color:var(--sub);">0 / 500</span>
+        <span id="note-saved" style="font-size:11px;font-weight:700;color:var(--ok);opacity:0;transition:opacity .3s;">✓ Сохранено</span>
+      </div>
+      <button class="sbtn" onclick="saveNote()">Сохранить</button>
+    </div>
+    <div class="slabel">Все заметки</div>
+    <div class="card" id="all-notes"></div>
+  </div>
+
+  <div id="page-calls" class="page">
+    <div class="topbar"><div><h1>🔔Звонки</h1><div class="sub">Расписание пар</div></div></div>
+    <div class="pills">
+      <button class="pill active" id="pill-monday"   onclick="showCalls('monday')">Понедельник</button>
+      <button class="pill"        id="pill-thursday" onclick="showCalls('thursday')">Четверг</button>
+      <button class="pill"        id="pill-other"    onclick="showCalls('other')">Другие дни</button>
+    </div>
+    <div class="card" id="calls-out"></div>
+  </div>
+
+  <div id="page-other" class="page">
+    <div class="topbar"><div><h1>📋Другое</h1></div></div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="row" onclick="openSupport()">
+        <div class="row-left">
+          <div class="row-icon green"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div><div class="row-title">Написать в поддержку</div></div>
+        </div>
+        <div class="chevron"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt=""/>
+</div>
+
+<div id="pwa-banner" class="pwa-banner" style="display:none;">
+  <button class="pwa-close" type="button" onclick="closePwaBanner()">✕</button>
+  <div class="pwa-text">
+    На главный экран
+    <div class="pwa-sub">Установите «Расписание» как приложение</div>
+  </div>
+  <button class="pwa-install" type="button" onclick="installPwa()">Установить</button>
+</div>
+
+<nav class="bnav">
+  <button class="nb active" id="nav-schedule" onclick="setPage('schedule')">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/><path d="M8 2v4M16 2v4"/></svg>
+    Расписание<span class="dot"></span>
+  </button>
+  <button class="nb" id="nav-calls" onclick="setPage('calls')">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+    Звонки<span class="dot"></span>
+  </button>
+  <button class="nb" id="nav-other" onclick="setPage('other')">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+    Другое<span class="dot"></span>
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+
+const API     = 'https://utmiitg.onrender.com';
+const SUPPORT = 'ouaoe';
+const POLL_MS = 5 * 60 * 1000;
+const NOTE_MAX = 500;
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const DAYS   = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const DNAMES = {monday:'Понедельник',tuesday:'Вторник',wednesday:'Среда',thursday:'Четверг',friday:'Пятница',saturday:'Суббота',general:'Общая'};
+const hashes = {};
+
+let day = null, pollT = null, refreshTs = null, saveT = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+  applyTheme(localStorage.getItem('theme') || 'light');
+  if (tg?.themeParams) applyTgTheme();
+
+  const s = new Date().toLocaleDateString('ru-RU', {weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('date-line').textContent = s[0].toUpperCase() + s.slice(1);
+
+  const today = DAYS[new Date().getDay()];
+  document.querySelector(`[data-day="${today}"]`)?.classList.add('today');
+  const defaultDay = today === 'sunday' ? 'monday' : today;
+  selectDay(defaultDay);
+
+  showCalls('monday');
+  renderNotes();
+  updateBadge();
+  setTimeout(showPwaBanner, 600);
+  setInterval(checkDayChange, 60 * 1000);
+});
+
+let pwaPrompt = null;
+let pwaClosedThisVisit = false;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  pwaPrompt = e;
+});
+window.addEventListener('appinstalled', () => {
+  localStorage.setItem('pwa-installed', '1');
+  const el = document.getElementById('pwa-banner');
+  if (el) el.style.display = 'none';
+});
+
+function showPwaBanner() {
+  if (tg) return;
+  if (pwaClosedThisVisit) return;
+  if (localStorage.getItem('pwa-installed')) return;
+  const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (window.navigator && window.navigator.standalone === true);
+  if (isStandalone) { localStorage.setItem('pwa-installed', '1'); return; }
+
+  const el = document.getElementById('pwa-banner');
+  if (!el) return;
+  el.style.display = 'flex';
+}
+
+function closePwaBanner() {
+  const el = document.getElementById('pwa-banner');
+  if (el) el.style.display = 'none';
+  // Allow closing for this visit, but show again next time until installed.
+  pwaClosedThisVisit = true;
+}
+
+function installPwa() {
+  if (pwaPrompt) {
+    const el = document.getElementById('pwa-banner');
+    if (el) el.style.display = 'none';
+    pwaPrompt.prompt();
+    pwaPrompt.userChoice.then(r => {
+      if (r.outcome === 'accepted') localStorage.setItem('pwa-installed', '1');
+      pwaPrompt = null;
+    });
+  } else {
+    // iOS или браузер без поддержки beforeinstallprompt: показываем подсказку.
+    closePwaBanner();
+    toast('Откройте меню браузера и выберите «Добавить на экран»');
+  }
+}
+
+function applyTgTheme() {
+  const p = tg.themeParams, r = document.documentElement.style;
+  if (p.bg_color)           r.setProperty('--bg',   p.bg_color);
+  if (p.text_color)         r.setProperty('--text', p.text_color);
+  if (p.hint_color)         r.setProperty('--sub',  p.hint_color);
+  if (p.button_color)       r.setProperty('--acc',  p.button_color);
+  if (p.button_text_color)  r.setProperty('--acct', p.button_text_color);
+  if (p.secondary_bg_color) r.setProperty('--surf', p.secondary_bg_color);
+}
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-icon').innerHTML = t === 'light'
+    ? `<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>`
+    : `<path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>`;
+}
+
+function toggleTheme() {
+  const t = (localStorage.getItem('theme') || 'light') === 'light' ? 'dark' : 'light';
+  localStorage.setItem('theme', t);
+  applyTheme(t);
+}
+
+function setPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  document.querySelectorAll('.nb').forEach(el => el.classList.remove('active'));
+  document.getElementById('nav-' + p)?.classList.add('active');
+  if (p === 'notes') { loadNote(day || 'general'); renderNotes(); }
+}
+
+function selectDay(d) {
+  day = d;
+  document.querySelectorAll('.dbn').forEach(b => b.classList.toggle('active', b.dataset.day === d));
+  clearInterval(pollT);
+  pollT = setInterval(() => checkHash(d), POLL_MS);
+  loadSchedule(d);
+}
+
+function checkDayChange() {
+  const t = DAYS[new Date().getDay()];
+  const nowDay = t === 'sunday' ? 'monday' : t;
+  if (day !== nowDay) {
+    document.querySelectorAll('.dbn').forEach(b => b.classList.toggle('today', b.dataset.day === nowDay));
+    selectDay(nowDay);
+  }
+}
+
+async function loadSchedule(d, silent = false) {
+  if (!silent) showSt('skel');
+  try {
+    const res  = await fetch(`${API}/api/schedule/${d}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    hashes[d] = data.hash;
+
+    if (data.pages > 1 && !silent) showSt('prog');
+    const box = document.getElementById('pages');
+    box.innerHTML = '';
+    data.images.forEach((b64, i) => {
+      const img = new Image();
+      img.src = 'data:image/jpeg;base64,' + b64;
+      img.loading = 'lazy';
+      img.onclick = () => openLightbox(img.src);
+      box.appendChild(img);
+      document.getElementById('prog-fill').style.width = Math.round((i+1)/data.pages*100) + '%';
+      document.getElementById('prog-txt').textContent  = `Страница ${i+1} из ${data.pages}`;
+    });
+
+    showSt('pages');
+    refreshTs = Date.now();
+    document.getElementById('dlnk').style.display = 'block';
+    document.getElementById('dlnk').href = data.link;
+  } catch (e) {
+    if (!silent) showSt('err', 'Не удалось загрузить расписание: ' + e.message);
+  }
+}
+
+async function checkHash(d) {
+  try {
+    const res  = await fetch(`${API}/api/schedule/${d}/hash`);
+    const data = await res.json();
+    if (data.hash !== hashes[d]) { loadSchedule(d, true); }
+  } catch (_) {}
+}
+
+function manualRefresh() {
+  if (!day) return;
+  delete hashes[day];
+  loadSchedule(day, true);
+}
+function retryLoad() { if (day) loadSchedule(day); }
+
+function showSt(st, msg) {
+  document.getElementById('st-empty').style.display = st==='empty' ? 'flex'  : 'none';
+  document.getElementById('st-skel') .style.display = st==='skel'  ? 'block' : 'none';
+  document.getElementById('st-prog') .style.display = st==='prog'  ? 'block' : 'none';
+  document.getElementById('st-err')  .style.display = st==='err'   ? 'block' : 'none';
+  document.getElementById('pages')   .style.display = st==='pages' ? 'block' : 'none';
+  if (st !== 'pages') document.getElementById('dlnk').style.display = 'none';
+  if (msg) document.getElementById('err-msg').textContent = '⚠️ ' + msg;
+}
+
+// Pull-to-refresh
+let ptr_startY = 0, ptr_pulling = false;
+const PTR_THRESHOLD = 70;
+
+document.addEventListener('touchstart', e => {
+  if (window.scrollY === 0) { ptr_startY = e.touches[0].clientY; ptr_pulling = true; }
+}, {passive: true});
+
+document.addEventListener('touchend', e => {
+  if (!ptr_pulling) return;
+  const diff = e.changedTouches[0].clientY - ptr_startY;
+  ptr_pulling = false;
+  if (diff > PTR_THRESHOLD && day) {
+    delete hashes[day];
+    loadSchedule(day, false);
+  }
+}, {passive: true});
+
+const CALLS = {
+  monday: {
+    lessons: [
+      {n:1, p1:'8:30-9:15',   p2:'9:20-10:05',  meal:null},
+      {n:2, p1:'10:15-11:00', p2:'11:15-12:00',  meal:'🍴 11:00-11:15'},
+      {n:3, p1:'13:05-13:50', p2:'13:55-14:40',  meal:null},
+      {n:4, p1:'14:45-15:30', p2:'15:35-16:20',  meal:null},
+    ],
+    breaks: [{after:2, text:'🍴 Обед  12:00-12:30'}, {after:2, text:'🕐 Классные часы  12:30-13:00'}],
+    special: null,
+  },
+  thursday: {
+    lessons: [
+      {n:1, p1:'8:30-9:15',   p2:'9:20-10:05',  meal:null},
+      {n:2, p1:'10:15-11:00', p2:'11:15-12:00',  meal:'🍴 11:00-11:15'},
+      {n:3, p1:'12:30-13:15', p2:'13:20-14:05',  meal:null},
+      {n:4, p1:'14:10-14:55', p2:'15:00-15:45',  meal:null},
+    ],
+    breaks: [{after:2, text:'🍴 Обед  12:00-12:30'}, {after:4, text:'🕐 Классные часы (1 курс): 15:50-16:20'}],
+    special: null,
+  },
+  other: {
+    lessons: [
+      {n:1, p1:'8:30-9:15',   p2:'9:20-10:05',  meal:null},
+      {n:2, p1:'10:15-11:00', p2:'11:15-12:00',  meal:'🍴 11:00-11:15'},
+      {n:3, p1:'12:40-13:25', p2:'13:30-14:15',  meal:null},
+      {n:4, p1:'14:25-15:10', p2:'15:15-16:00',  meal:null},
+      {n:5, p1:'16:05-16:50', p2:'16:55-17:40',  meal:null},
+    ],
+    breaks: [{after:2, text:'🍴 Обед  12:00-12:40'}],
+    special: null,
+  },
+};
+
+function showCalls(tab) {
+  ['monday','thursday','other'].forEach(k =>
+    document.getElementById('pill-'+k).classList.toggle('active', k === tab));
+  const d = CALLS[tab];
+  let html = '<div class="cl-list">';
+  d.lessons.forEach(l => {
+    html += `<div class="cl-item">
+      <div class="cl-num">${l.n}</div>
+      <div class="cl-times">
+        <div class="cl-part-l"><span class="cl-t">${l.p1}</span><span class="cl-s">1-я часть</span></div>
+        <div class="cl-mid">${l.meal ? `<div class="cl-meal">${l.meal}</div>` : `<div class="cl-dash"></div>`}</div>
+        <div class="cl-part-r"><span class="cl-t">${l.p2}</span><span class="cl-s">2-я часть</span></div>
+      </div>
+    </div>`;
+    d.breaks.filter(b => b.after === l.n).forEach(b => {
+      html += `<div class="cl-break">${b.text}</div>`;
+    });
+  });
+  html += '</div>';
+  document.getElementById('calls-out').innerHTML = html;
+}
+
+const nk = d => 'note_' + d;
+const ALL_DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','general'];
+
+function onNoteInput() {
+  const ta = document.getElementById('note-ta');
+  if (ta.value.length > NOTE_MAX) ta.value = ta.value.slice(0, NOTE_MAX);
+  document.getElementById('note-chars').textContent = ta.value.length + ' / ' + NOTE_MAX;
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    doSave();
+    const el = document.getElementById('note-saved');
+    el.style.opacity = '1';
+    setTimeout(() => el.style.opacity = '0', 1500);
+  }, 800);
+}
+
+function doSave() {
+  const d = document.getElementById('note-day').value;
+  const t = document.getElementById('note-ta').value.trim();
+  t ? localStorage.setItem(nk(d), t) : localStorage.removeItem(nk(d));
+  renderNotes(); updateBadge();
+}
+
+function saveNote() { doSave(); toast('Заметка сохранена ✓'); tg?.HapticFeedback?.notificationOccurred('success'); }
+
+function loadNote(d) {
+  document.getElementById('note-day').value = d;
+  const t = localStorage.getItem(nk(d)) || '';
+  document.getElementById('note-ta').value = t;
+  document.getElementById('note-chars').textContent = t.length + ' / ' + NOTE_MAX;
+}
+
+function delNote(d) {
+  localStorage.removeItem(nk(d));
+  if (document.getElementById('note-day').value === d) loadNote(d);
+  renderNotes(); updateBadge(); toast('Заметка удалена');
+}
+
+function renderNotes() {
+  const items = ALL_DAYS.map(d => ({d, t: localStorage.getItem(nk(d))})).filter(n => n.t);
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  document.getElementById('all-notes').innerHTML = items.length
+    ? items.map(n => `<div class="nitem"><div style="display:flex;align-items:center;justify-content:space-between;"><span class="ntag">${DNAMES[n.d]||n.d}</span><button class="dbtn" onclick="delNote('${n.d}')">✕</button></div><p class="ntxt">${esc(n.t)}</p></div>`).join('')
+    : `<div style="padding:24px;text-align:center;color:var(--sub);font-weight:700;font-size:14px;">Заметок пока нет</div>`;
+}
+
+function updateBadge() {
+  document.getElementById('notes-badge').classList.toggle('on', ALL_DAYS.some(d => localStorage.getItem(nk(d))));
+}
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openSupport() {
+  const url = 'https://t.me/' + SUPPORT;
+  try { tg?.openTelegramLink(url) || window.open(url, '_blank'); }
+  catch (_) { window.open(url, '_blank'); }
+}
+
+let toastT;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2300);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+</script>
+</body>
+</html>
