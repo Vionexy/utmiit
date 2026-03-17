@@ -4,6 +4,9 @@ from io import BytesIO
 import fitz
 import hashlib
 import os
+import json
+import base64
+from typing import Optional, List
 from PIL import Image
 from datetime import datetime, timezone, timedelta
 import aiosqlite
@@ -19,6 +22,13 @@ API_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = AsyncTeleBot(API_TOKEN)
 ADMIN_ID = 6986627524
+
+# === GITHUB PUBLISH (optional) ===
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPO")  # format: owner/repo
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+GITHUB_SITE_PATH = os.getenv("GITHUB_SITE_PATH", "static/schedule")
+GITHUB_ENABLED = bool(GITHUB_TOKEN and GITHUB_REPO)
 
 
 # кастомная кнопка с цветом (API 9.4)
@@ -49,6 +59,68 @@ SCHEDULE_FILES = {
     "saturday": {"id": "1hkXSDN-Dz86QGeyjhLZ7jlvSd9sMwmex", "name": "субботу",
                  "link": "https://drive.google.com/file/d/1hkXSDN-Dz86QGeyjhLZ7jlvSd9sMwmex/view"},
 }
+
+
+async def gh_get_sha(path: str) -> Optional[str]:
+    if not GITHUB_ENABLED:
+        return None
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "utmiitbot",
+    }
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(url, headers=headers, params={"ref": GITHUB_BRANCH})
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.json().get("sha")
+
+
+async def gh_put_file(path: str, content: bytes, message: str) -> None:
+    if not GITHUB_ENABLED:
+        return
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "utmiitbot",
+    }
+    sha = await gh_get_sha(path)
+    payload = {
+        "message": message,
+        "content": base64.b64encode(content).decode(),
+        "branch": GITHUB_BRANCH,
+    }
+    if sha:
+        payload["sha"] = sha
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.put(url, headers=headers, json=payload)
+        r.raise_for_status()
+
+
+async def publish_schedule_to_github(day: str, imgs: List[BytesIO], pdf_hash: str, link: str) -> None:
+    if not GITHUB_ENABLED:
+        return
+    base = f"{GITHUB_SITE_PATH}/{day}"
+    for i, img in enumerate(imgs):
+        img.seek(0)
+        data = img.read()
+        img.seek(0)
+        await gh_put_file(f"{base}/page-{i + 1}.png", data, f"update {day} page {i + 1}")
+    manifest = {
+        "day": day,
+        "hash": pdf_hash,
+        "pages": len(imgs),
+        "link": link,
+        "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    await gh_put_file(
+        f"{base}/manifest.json",
+        json.dumps(manifest, ensure_ascii=True, indent=2).encode("utf-8"),
+        f"update {day} manifest",
+    )
 
 # звонки
 CALLS = {
@@ -443,6 +515,12 @@ async def check_loop():
             if cur_hash != old_hash:
                 imgs = make_images(pdf)
                 await to_cache(next_day, imgs, cur_hash)
+
+                if GITHUB_ENABLED:
+                    try:
+                        await publish_schedule_to_github(next_day, imgs, cur_hash, info["link"])
+                    except Exception as e:
+                        print(f"github publish error {next_day}: {e}")
 
                 subs = await get_ids('subscribers')
                 if subs:
