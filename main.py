@@ -15,7 +15,6 @@ from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
     Message
 from collections import defaultdict
 import time
-import random
 
 # токен бота
 API_TOKEN = os.getenv("BOT_TOKEN")
@@ -916,7 +915,6 @@ async def setup():
         BotCommand("schedule", "🗓️Расписание"),
         BotCommand("bell", "🔔Звонки"),
         BotCommand("mailing", "📬Рассылка"),
-        BotCommand("publish", "🔁Публиковать расписание"),
     ])
 
 
@@ -935,29 +933,8 @@ async def main():
     await setup()
     asyncio.create_task(check_loop())
     asyncio.create_task(stats_log())
-    asyncio.create_task(keep_api_alive())
-    print("Бот и система поддержания API запущены")
+    print("Бот запущен")
     await bot.polling(non_stop=True, skip_pending=True)
-
-
-async def keep_api_alive():
-    """Раз в 12 минут стучится в API на Render, чтобы тот не заснул."""
-    # Замени на свою реальную ссылку от Render
-    api_url = "https://utmiitg.onrender.com/health"
-
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(api_url)
-                if response.status_code == 200:
-                    print(f"[ping] API жив: {datetime.now().strftime('%H:%M:%S')}")
-                else:
-                    print(f"[ping] Ошибка API: {response.status_code}")
-        except Exception as e:
-            print(f"[ping] Не удалось достучаться: {e}")
-
-        # Спим 12 минут (720 секунд)
-        await asyncio.sleep(720)
 
 
 if __name__ == "__main__":
