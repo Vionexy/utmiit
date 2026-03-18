@@ -122,6 +122,45 @@ async def publish_schedule_to_github(day: str, imgs: List[BytesIO], pdf_hash: st
         f"update {day} manifest",
     )
 
+
+# Человеческие алиасы для /publish
+DAY_ALIASES = {
+    "mon": "monday", "monday": "monday", "понедельник": "monday", "пн": "monday",
+    "tue": "tuesday", "tuesday": "tuesday", "вторник": "tuesday", "вт": "tuesday",
+    "wed": "wednesday", "wednesday": "wednesday", "среда": "wednesday", "ср": "wednesday",
+    "thu": "thursday", "thursday": "thursday", "четверг": "thursday", "чт": "thursday",
+    "fri": "friday", "friday": "friday", "пятница": "friday", "пт": "friday",
+    "sat": "saturday", "saturday": "saturday", "суббота": "saturday", "сб": "saturday",
+}
+ALL_ALIASES = {"all", "*", "все"}
+
+
+def normalize_day_arg(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    key = raw.strip().lower()
+    return DAY_ALIASES.get(key, key)
+
+
+async def build_schedule_assets(day: str):
+    """Скачивает PDF, делает картинки и возвращает (imgs, hash, link)."""
+    info = SCHEDULE_FILES[day]
+    pdf, err = await download_pdf(info["id"])
+    if not pdf:
+        raise RuntimeError(f"{day}: не скачал PDF ({err})")
+    imgs = make_images(pdf)
+    return imgs, calc_hash(pdf), info["link"]
+
+
+async def publish_day_to_github(day: str) -> int:
+    """Публикует расписание одного дня в GitHub и обновляет кэш/БД."""
+    imgs, pdf_hash, link = await build_schedule_assets(day)
+    await to_cache(day, imgs, pdf_hash)
+    await publish_schedule_to_github(day, imgs, pdf_hash, link)
+    today = datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+    await save_hash(day, pdf_hash, today)
+    return len(imgs)
+
 # звонки
 CALLS = {
     "monday_calls": """<b>Понедельник</b>
@@ -582,6 +621,46 @@ async def cmd_stats(msg):
     await bot.send_message(msg.chat.id,
                            f"📊Статистика:\n\nВсего: {total}\nПодписаны: {subs}\nСегодня: {daily}",
                            reply_markup=menu_stats())
+
+
+@bot.message_handler(commands=["publish"])
+async def cmd_publish(msg):
+    if msg.chat.id != ADMIN_ID:
+        return
+    if not GITHUB_ENABLED:
+        await bot.send_message(msg.chat.id, "GITHUB_TOKEN/GITHUB_REPO не настроены.")
+        return
+
+    parts = msg.text.split(maxsplit=1)
+    arg = normalize_day_arg(parts[1]) if len(parts) > 1 else None
+    if arg in ALL_ALIASES or not arg:
+        days = list(SCHEDULE_FILES.keys())
+    elif arg in SCHEDULE_FILES:
+        days = [arg]
+    else:
+        await bot.send_message(
+            msg.chat.id,
+            "Использование: /publish [monday|tuesday|...|saturday|all]\n"
+            "Можно по-русски: пн, вт, ср, чт, пт, сб."
+        )
+        return
+
+    await bot.send_message(msg.chat.id, f"Публикую: {', '.join(days)}")
+    ok = []
+    fail = []
+    for d in days:
+        try:
+            pages = await publish_day_to_github(d)
+            ok.append(f"{d} ({pages} стр.)")
+        except Exception as e:
+            fail.append(f"{d}: {e}")
+
+    lines = []
+    if ok:
+        lines.append("Готово: " + ", ".join(ok))
+    if fail:
+        lines.append("Ошибки: " + "; ".join(fail))
+    await bot.send_message(msg.chat.id, "\n".join(lines) if lines else "Нечего публиковать.")
 
 
 # === /send — рассылка текста всем ===
