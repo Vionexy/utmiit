@@ -918,7 +918,6 @@ async def setup():
         BotCommand("schedule", "🗓️Расписание"),
         BotCommand("bell", "🔔Звонки"),
         BotCommand("mailing", "📬Рассылка"),
-        BotCommand("publish", "🔁Публиковать расписание"),
     ])
 
 
