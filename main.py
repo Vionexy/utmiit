@@ -28,6 +28,18 @@ GITHUB_REPO = os.getenv("GITHUB_REPO")  # format: owner/repo
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 GITHUB_SITE_PATH = os.getenv("GITHUB_SITE_PATH", "static/schedule")
 GITHUB_ENABLED = bool(GITHUB_TOKEN and GITHUB_REPO)
+GITHUB_API = "https://api.github.com"
+GITHUB_HEADERS = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "utmiitbot",
+}
+
+LOCAL_TZ = timezone(timedelta(hours=7))
+
+
+def now_local() -> datetime:
+    return datetime.now(LOCAL_TZ)
 
 
 # кастомная кнопка с цветом (API 9.4)
@@ -63,14 +75,9 @@ SCHEDULE_FILES = {
 async def gh_get_sha(path: str) -> Optional[str]:
     if not GITHUB_ENABLED:
         return None
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "utmiitbot",
-    }
+    url = f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{path}"
     async with httpx.AsyncClient(timeout=20) as c:
-        r = await c.get(url, headers=headers, params={"ref": GITHUB_BRANCH})
+        r = await c.get(url, headers=GITHUB_HEADERS, params={"ref": GITHUB_BRANCH})
         if r.status_code == 404:
             return None
         r.raise_for_status()
@@ -80,12 +87,7 @@ async def gh_get_sha(path: str) -> Optional[str]:
 async def gh_put_file(path: str, content: bytes, message: str) -> None:
     if not GITHUB_ENABLED:
         return
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "utmiitbot",
-    }
+    url = f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{path}"
     sha = await gh_get_sha(path)
     payload = {
         "message": message,
@@ -95,7 +97,7 @@ async def gh_put_file(path: str, content: bytes, message: str) -> None:
     if sha:
         payload["sha"] = sha
     async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.put(url, headers=headers, json=payload)
+        r = await c.put(url, headers=GITHUB_HEADERS, json=payload)
         r.raise_for_status()
 
 
@@ -168,7 +170,7 @@ async def publish_day_to_github(day: str) -> int:
     imgs, pdf_hash, link = await build_schedule_assets(day)
     await to_cache(day, imgs, pdf_hash)
     await publish_schedule_to_github(day, imgs, pdf_hash, link)
-    today = datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+    today = now_local().strftime("%Y-%m-%d")
     await save_hash(day, pdf_hash, today)
     return len(imgs)
 
@@ -431,7 +433,7 @@ def menu_main(admin=False):
 
 
 def menu_days(show_stars=False):
-    now = datetime.now(timezone(timedelta(hours=7)))
+    now = now_local()
     wd = now.weekday()
     d_map = {0: "monday", 1: "tuesday", 2: "wednesday", 3: "thursday",
              4: "friday", 5: "saturday", 6: "monday"}
@@ -530,7 +532,7 @@ async def check_loop():
     cache.clear()
     while True:
         try:
-            now = datetime.now(timezone(timedelta(hours=7)))
+            now = now_local()
             if not (8 <= now.hour < 18):
                 await asyncio.sleep(900)
                 continue
@@ -637,6 +639,7 @@ async def cmd_stats(msg):
 @bot.message_handler(commands=["publish"])
 async def cmd_publish(msg):
     if msg.chat.id != ADMIN_ID:
+        await bot.send_message(msg.chat.id, "нет доступа")
         return
     if not GITHUB_ENABLED:
         await bot.send_message(msg.chat.id, "GITHUB_TOKEN/GITHUB_REPO не настроены.")
