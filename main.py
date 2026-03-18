@@ -105,15 +105,14 @@ async def publish_schedule_to_github(day: str, imgs: List[BytesIO], pdf_hash: st
         return
     base = f"{GITHUB_SITE_PATH}/{day}"
     for i, img in enumerate(imgs):
-        img.seek(0)
-        data = img.read()
-        img.seek(0)
-        await gh_put_file(f"{base}/page-{i + 1}.png", data, f"update {day} page {i + 1}")
+        web_img = encode_for_web(img)
+        await gh_put_file(f"{base}/page-{i + 1}.jpg", web_img, f"update {day} page {i + 1}")
     manifest = {
         "day": day,
         "hash": pdf_hash,
         "pages": len(imgs),
         "link": link,
+        "ext": "jpg",
         "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     await gh_put_file(
@@ -140,6 +139,21 @@ def normalize_day_arg(raw: str) -> Optional[str]:
         return None
     key = raw.strip().lower()
     return DAY_ALIASES.get(key, key)
+
+
+def encode_for_web(img: BytesIO) -> bytes:
+    """Сжимает картинку для сайта (jpg) чтобы GitHub принимал файлы стабильно."""
+    img.seek(0)
+    try:
+        pil = Image.open(img).convert("RGB")
+        max_px = 1600
+        if pil.width > max_px or pil.height > max_px:
+            pil.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
+        out = BytesIO()
+        pil.save(out, format="JPEG", quality=82, optimize=True, progressive=True)
+        return out.getvalue()
+    finally:
+        img.seek(0)
 
 
 async def build_schedule_assets(day: str):
