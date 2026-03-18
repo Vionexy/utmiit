@@ -122,35 +122,33 @@ async def publish_schedule_to_github(day: str, imgs: List[BytesIO], pdf_hash: st
     )
 
 
-# Человеческие алиасы для /publish
-DAY_ALIASES = {
-    "mon": "monday", "monday": "monday", "понедельник": "monday", "пн": "monday",
-    "tue": "tuesday", "tuesday": "tuesday", "вторник": "tuesday", "вт": "tuesday",
-    "wed": "wednesday", "wednesday": "wednesday", "среда": "wednesday", "ср": "wednesday",
-    "thu": "thursday", "thursday": "thursday", "четверг": "thursday", "чт": "thursday",
-    "fri": "friday", "friday": "friday", "пятница": "friday", "пт": "friday",
-    "sat": "saturday", "saturday": "saturday", "суббота": "saturday", "сб": "saturday",
+DAY_MAP = {
+    "пн": "monday", "понедельник": "monday",
+    "вт": "tuesday", "вторник": "tuesday",
+    "ср": "wednesday", "среда": "wednesday",
+    "чт": "thursday", "четверг": "thursday",
+    "пт": "friday", "пятница": "friday",
+    "сб": "saturday", "суббота": "saturday",
+    "все": "all", "*": "all",
 }
-ALL_ALIASES = {"all", "*", "все"}
 
 
 def normalize_day_arg(raw: str) -> Optional[str]:
     if not raw:
         return None
     key = raw.strip().lower()
-    return DAY_ALIASES.get(key, key)
+    return DAY_MAP.get(key, key)
 
 
 def encode_for_web(img: BytesIO) -> bytes:
-    """Сжимает картинку для сайта (jpg) чтобы GitHub принимал файлы стабильно."""
     img.seek(0)
     try:
         pil = Image.open(img).convert("RGB")
-        max_px = 1600
+        max_px = 1200
         if pil.width > max_px or pil.height > max_px:
             pil.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
         out = BytesIO()
-        pil.save(out, format="JPEG", quality=82, optimize=True, progressive=True)
+        pil.save(out, format="JPEG", quality=75, optimize=True, progressive=True)
         return out.getvalue()
     finally:
         img.seek(0)
@@ -647,7 +645,7 @@ async def cmd_publish(msg):
 
     parts = msg.text.split(maxsplit=1)
     arg = normalize_day_arg(parts[1]) if len(parts) > 1 else None
-    if arg in ALL_ALIASES or not arg:
+    if arg == "all" or not arg:
         days = list(SCHEDULE_FILES.keys())
     elif arg in SCHEDULE_FILES:
         days = [arg]
