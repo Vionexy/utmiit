@@ -145,11 +145,11 @@ def encode_for_web(img: BytesIO) -> bytes:
     img.seek(0)
     try:
         pil = Image.open(img).convert("RGB")
-        max_px = 1200
+        max_px = 2000
         if pil.width > max_px or pil.height > max_px:
             pil.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
         out = BytesIO()
-        pil.save(out, format="JPEG", quality=75, optimize=True, progressive=True)
+        pil.save(out, format="JPEG", quality=88, optimize=True, progressive=True)
         return out.getvalue()
     finally:
         img.seek(0)
@@ -381,7 +381,7 @@ def make_images(pdf):
     imgs = []
     for i in range(len(doc)):
         page = doc.load_page(i)
-        pix = page.get_pixmap(dpi=150)
+        pix = page.get_pixmap(dpi=200)
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         if img.width > 2000 or img.height > 2000:
             img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
