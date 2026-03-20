@@ -533,57 +533,39 @@ async def check_loop():
     while True:
         try:
             now = now_local()
-            if not (8 <= now.hour < 18):
-                await asyncio.sleep(900)
-                continue
-
-            wd = now.weekday()
-            # 0=mon, 1=tue, 2=wed, 3=thu, 4=fri, 5=sat, 6=sun
-            # пятница проверяет субботу, суббота-воскресенье проверяют понедельник
-            if wd == 4:  # пятница
-                next_day = "saturday"
-            elif wd == 5 or wd == 6:  # суббота или воскресенье
-                next_day = "monday"
-            else:
-                # пн->вт, вт->ср, ср->чт, чт->пт
-                next_day = {0: "tuesday", 1: "wednesday", 2: "thursday", 3: "friday"}.get(wd)
-
-            if not next_day or next_day not in SCHEDULE_FILES:
-                await asyncio.sleep(900)
-                continue
-
-            info = SCHEDULE_FILES[next_day]
-            pdf, err = await download_pdf(info["id"])
-
-            if not pdf:
-                print(f"не скачал {next_day}: {err}")
-                await asyncio.sleep(900)
-                continue
-
-            cur_hash = calc_hash(pdf)
-            old_hash, last_sent_date = await get_hash_db(next_day)
             today = now.strftime("%Y-%m-%d")
+            for day, info in SCHEDULE_FILES.items():
+                try:
+                    pdf, err = await download_pdf(info["id"])
+                    if not pdf:
+                        print(f"не скачал {day}: {err}")
+                        continue
 
-            if cur_hash != old_hash:
-                imgs = make_images(pdf)
-                await to_cache(next_day, imgs, cur_hash)
+                    cur_hash = calc_hash(pdf)
+                    old_hash, last_sent_date = await get_hash_db(day)
 
-                if GITHUB_ENABLED:
-                    try:
-                        await publish_schedule_to_github(next_day, imgs, cur_hash, info["link"])
-                    except Exception as e:
-                        print(f"github publish error {next_day}: {e}")
+                    if cur_hash != old_hash:
+                        imgs = make_images(pdf)
+                        await to_cache(day, imgs, cur_hash)
 
-                subs = await get_ids('subscribers')
-                if subs:
-                    ok, fail = await mass_send(subs, imgs, info, f"🔄Расписание на {info['name']}")
-                    print(f"рассылка: {ok} ок, {fail} ошибок")
+                        if GITHUB_ENABLED:
+                            try:
+                                await publish_schedule_to_github(day, imgs, cur_hash, info["link"])
+                            except Exception as e:
+                                print(f"github publish error {day}: {e}")
 
-                await save_hash(next_day, cur_hash, today)
-            else:
-                if last_sent_date != today:
-                    await save_hash(next_day, cur_hash, today)
-                print(f"без изменений: {next_day}")
+                        subs = await get_ids('subscribers')
+                        if subs:
+                            ok, fail = await mass_send(subs, imgs, info, f"🔄Расписание на {info['name']}")
+                            print(f"рассылка: {ok} ок, {fail} ошибок")
+
+                        await save_hash(day, cur_hash, today)
+                    else:
+                        if last_sent_date != today:
+                            await save_hash(day, cur_hash, today)
+                        print(f"без изменений: {day}")
+                except Exception as e:
+                    print(f"ошибка проверки {day}: {e}")
 
             await asyncio.sleep(900)
 
