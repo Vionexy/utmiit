@@ -1,6 +1,6 @@
 httpx
 pymupdf
 Pillow
-aiohttp
+aiohttp==3.13.3
 aiosqlite
 pyTelegramBotAPI
