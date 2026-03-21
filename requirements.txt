@@ -1,5 +1,6 @@
 httpx
 pymupdf
 Pillow
+aiohttp
 aiosqlite
 pyTelegramBotAPI
