@@ -386,7 +386,7 @@ def make_images(pdf):
         if img.width > 3000 or img.height > 3000:
             img.thumbnail((3000, 3000), Image.Resampling.LANCZOS)
         buf = BytesIO()
-        img.save(buf, format="PNG", optimize=True)
+        img.save(buf, format="PNG", optimize=False)
         buf.seek(0)
         imgs.append(buf)
     doc.close()
