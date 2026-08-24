@@ -1,6 +1,0 @@
-httpx
-pymupdf
-Pillow
-aiohttp==3.13.3
-aiosqlite
-pyTelegramBotAPI
