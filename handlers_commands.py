@@ -54,22 +54,17 @@ async def cmd_mailing(msg: Message):
     await bot.send_message(msg.chat.id, text, reply_markup=menu_mail(subscribed))
 
 
-@bot.message_handler(commands=["cancel"])
-async def cmd_cancel(msg: Message):
-    state = app.state.pop(msg.chat.id)
-    text = "Отменено." if state else "Нечего отменять."
-    await bot.send_message(msg.chat.id, text)
-
-
 @bot.message_handler(commands=["stats"], is_admin=True)
 async def cmd_stats(msg: Message):
+    text = await build_stats_text()
+    await bot.send_message(msg.chat.id, text, reply_markup=menu_stats())
+
+
+async def build_stats_text() -> str:
+    """Статистика вместе с состоянием расписания: раньше это была команда /status."""
     stats = await app.db.get_stats()
-    await bot.send_message(msg.chat.id, stats_text(stats), reply_markup=menu_stats())
+    lines = [stats_text(stats), "", "📋<b>Состояние расписания:</b>"]
 
-
-@bot.message_handler(commands=["status"], is_admin=True)
-async def cmd_status(msg: Message):
-    lines = ["📋 <b>Статус расписания:</b>\n"]
     for day in SCHEDULE_FILES:
         last_hash, last_sent = await app.db.get_hash(day)
         name = DAY_NAMES_SHORT.get(day, day)
@@ -81,18 +76,13 @@ async def cmd_status(msg: Message):
             f"{mark} <b>{name}</b>: обновлён {last_sent or '-'}, hash <code>{last_hash[:8]}</code>"
         )
 
-    stats = await app.db.get_stats()
-    lines.append(
-        f"\n👥 Всего: {stats.total} | Подписаны: {stats.subscribers} | Сегодня: {stats.daily}"
-    )
-
     if app.last_check_time is None:
-        lines.append("⏱ Проверка ещё не запускалась")
+        lines.append("⏱Проверка ещё не запускалась")
     else:
         left = max(0, CHECK_INTERVAL_SEC - int(time.time() - app.last_check_time))
-        lines.append(f"⏱ Следующая проверка через ~{left // 60} мин {left % 60} сек")
+        lines.append(f"⏱Следующая проверка через ~{left // 60} мин {left % 60} сек")
 
-    await bot.send_message(msg.chat.id, "\n".join(lines))
+    return "\n".join(lines)
 
 
 @bot.message_handler(commands=["publish"], is_admin=True)

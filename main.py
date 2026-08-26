@@ -26,12 +26,10 @@ USER_COMMANDS = [
     BotCommand("schedule", "🗓️Расписание"),
     BotCommand("bell", "🔔Звонки"),
     BotCommand("mailing", "📣Рассылка"),
-    BotCommand("cancel", "✖️Отменить ввод"),
 ]
 
 ADMIN_COMMANDS = USER_COMMANDS + [
     BotCommand("stats", "📊Статистика"),
-    BotCommand("status", "📋Состояние расписания"),
     BotCommand("publish", "📤Опубликовать расписание"),
     BotCommand("send", "📨Рассылка вручную"),
 ]

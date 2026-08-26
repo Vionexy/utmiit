@@ -5,7 +5,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from telebot.apihelper import ApiTelegramException
+from telebot.asyncio_helper import ApiTelegramException
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import InlineKeyboardMarkup
 

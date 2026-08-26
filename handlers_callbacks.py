@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import math
 
-from telebot.apihelper import ApiTelegramException
+from telebot.asyncio_helper import ApiTelegramException
 from telebot.types import CallbackQuery
 
 from app_context import app, bot
 from config import CALLS, PAGE_SIZE, SCHEDULE_FILES
+from handlers_commands import build_stats_text
 from keyboards import (
     ADMIN_STATS,
     BELL,
@@ -29,7 +30,6 @@ from keyboards import (
     menu_pages,
     menu_stats,
     schedule_caption,
-    stats_text,
     users_page_text,
 )
 from media import send_pages
@@ -47,6 +47,12 @@ MAIL_OFF = "Вы не подписаны"
 
 
 async def _edit(call: CallbackQuery, text: str, markup=None) -> None:
+    """Правит текст сообщения, а если сообщение нетекстовое - присылает новое.
+
+    Кнопки живут и под фото (расписание), а фото-сообщению текст поменять
+    нельзя: Telegram отвечает разными 400-ками. Поэтому на любую ошибку
+    правки шлём новое сообщение, иначе кнопка выглядит мёртвой.
+    """
     try:
         await bot.edit_message_text(
             text, call.message.chat.id, call.message.message_id, reply_markup=markup
@@ -55,9 +61,8 @@ async def _edit(call: CallbackQuery, text: str, markup=None) -> None:
         description = exc.description or ""
         if "message is not modified" in description:
             return
-        if "no text in the message" in description or "message to edit not found" in description:
-            await bot.send_message(call.message.chat.id, text, reply_markup=markup)
-            return
+        logger.info("не удалось отредактировать сообщение (%s), отправляю новое", description)
+        await bot.send_message(call.message.chat.id, text, reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == NOOP)
@@ -151,8 +156,7 @@ async def cb_day(call: CallbackQuery):
 @bot.callback_query_handler(func=lambda call: call.data == ADMIN_STATS, is_admin=True)
 async def cb_stats(call: CallbackQuery):
     await bot.answer_callback_query(call.id)
-    stats = await app.db.get_stats()
-    await _edit(call, stats_text(stats), menu_stats())
+    await _edit(call, await build_stats_text(), menu_stats())
 
 
 @bot.callback_query_handler(func=None, config=PAGE_CB.filter(), is_admin=True)
