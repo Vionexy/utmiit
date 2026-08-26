@@ -51,7 +51,7 @@ class UserRecord:
         title = html.escape(full_name) or "без имени"
         if self.username:
             handle = html.escape(self.username)
-            return f'<a href="https://t.me/{handle}">@{handle}</a> — {title}'
+            return f'<a href="https://t.me/{handle}">@{handle}</a> - {title}'
         return f"{title} (<code>{self.chat_id}</code>)"
 
 

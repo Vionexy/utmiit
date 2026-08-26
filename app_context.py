@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 class AppContext:
     def __init__(self) -> None:
-        self.bot = AsyncTeleBot(API_TOKEN, parse_mode="HTML")
+        # превью ссылок не нужно: в списке пользователей телеграм иначе
+        # разворачивает чужие каналы и профили большой плашкой
+        self.bot = AsyncTeleBot(API_TOKEN, parse_mode="HTML", disable_web_page_preview=True)
         self.db = Database()
         self.cache = ScheduleCache()
         self.publisher = GithubPublisher()
