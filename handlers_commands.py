@@ -22,39 +22,35 @@ from schedule_service import parse_day
 logger = logging.getLogger(__name__)
 
 PUBLISH_USAGE = (
-    "Использование: <code>/publish пн|вт|ср|чт|пт|сб|все</code>\n"
-    "Английские ключи (monday, tuesday, ...) тоже работают."
+    "Использование: /publish [monday|tuesday|...|saturday|all]\n"
+    "Можно по-русски: пн, вт, ср, чт, пт, сб."
 )
 
 
 @bot.message_handler(commands=["start"])
 async def cmd_start(msg: Message, is_admin: bool = False):
-    name = html.escape(msg.from_user.first_name or "друг")
+    name = html.escape(msg.from_user.first_name or "")
     await bot.send_message(
         msg.chat.id,
-        f"Привет, {name}!\n\nЗдесь расписание колледжа и время звонков. Выбирай ниже 👇",
+        f"Привет, {name}!👇",
         reply_markup=menu_main(is_admin),
     )
 
 
 @bot.message_handler(commands=["schedule"])
 async def cmd_schedule(msg: Message):
-    await bot.send_message(msg.chat.id, "Выберите день 👇", reply_markup=menu_days())
+    await bot.send_message(msg.chat.id, "Выберите день👇", reply_markup=menu_days())
 
 
 @bot.message_handler(commands=["bell"])
 async def cmd_bell(msg: Message):
-    await bot.send_message(msg.chat.id, "🔔 Расписание звонков", reply_markup=menu_calls())
+    await bot.send_message(msg.chat.id, "Информация о звонках🔔", reply_markup=menu_calls())
 
 
 @bot.message_handler(commands=["mailing"])
 async def cmd_mailing(msg: Message):
     subscribed = await app.db.is_subscribed(msg.chat.id)
-    text = (
-        "✅ Вы подписаны — пришлём расписание, как только оно обновится."
-        if subscribed
-        else "🔕 Вы не подписаны на обновления расписания."
-    )
+    text = "Вы подписаны✅" if subscribed else "Вы не подписаны"
     await bot.send_message(msg.chat.id, text, reply_markup=menu_mail(subscribed))
 
 
@@ -73,22 +69,21 @@ async def cmd_stats(msg: Message):
 
 @bot.message_handler(commands=["status"], is_admin=True)
 async def cmd_status(msg: Message):
-    lines = ["📋 <b>Состояние расписания</b>\n"]
+    lines = ["📋 <b>Статус расписания:</b>\n"]
     for day in SCHEDULE_FILES:
         last_hash, last_sent = await app.db.get_hash(day)
         name = DAY_NAMES_SHORT.get(day, day)
         if not last_hash:
-            lines.append(f"▫️ <b>{name}</b>: данных нет")
+            lines.append(f"  <b>{name}</b>: нет данных")
             continue
-        mark = "💾" if app.cache.is_fresh(day) else "▫️"
+        mark = "💾" if app.cache.is_fresh(day) else "  "
         lines.append(
-            f"{mark} <b>{name}</b>: {last_sent or '—'}, hash <code>{last_hash[:8]}</code>"
+            f"{mark} <b>{name}</b>: обновлён {last_sent or '-'}, hash <code>{last_hash[:8]}</code>"
         )
 
     stats = await app.db.get_stats()
     lines.append(
-        f"\n👥 Всего: {stats.total} | Подписчиков: {stats.subscribers} | "
-        f"Сегодня: {stats.daily} | Заблокировали: {stats.blocked}"
+        f"\n👥 Всего: {stats.total} | Подписаны: {stats.subscribers} | Сегодня: {stats.daily}"
     )
 
     if app.last_check_time is None:
@@ -103,16 +98,12 @@ async def cmd_status(msg: Message):
 @bot.message_handler(commands=["publish"], is_admin=True)
 async def cmd_publish(msg: Message):
     if not app.publisher.enabled:
-        await bot.send_message(msg.chat.id, "Публикация выключена: нет GITHUB_TOKEN или GITHUB_REPO.")
+        await bot.send_message(msg.chat.id, "GITHUB_TOKEN/GITHUB_REPO не настроены.")
         return
 
     parts = msg.text.split(maxsplit=1)
-    if len(parts) < 2:
-        await bot.send_message(msg.chat.id, PUBLISH_USAGE)
-        return
-
-    target = parse_day(parts[1])
-    if target == "all":
+    target = parse_day(parts[1]) if len(parts) > 1 else None
+    if target == "all" or not target:
         days = list(SCHEDULE_FILES)
     elif target in SCHEDULE_FILES:
         days = [target]
@@ -120,7 +111,7 @@ async def cmd_publish(msg: Message):
         await bot.send_message(msg.chat.id, PUBLISH_USAGE)
         return
 
-    await bot.send_message(msg.chat.id, f"⏳ Публикую: {', '.join(days)}")
+    await bot.send_message(msg.chat.id, f"Публикую: {', '.join(days)}")
     published_at = today_local()
     done, failed = [], []
     for day in days:
@@ -133,10 +124,10 @@ async def cmd_publish(msg: Message):
 
     report = []
     if done:
-        report.append("✅ Готово: " + ", ".join(done))
+        report.append("Готово: " + ", ".join(done))
     if failed:
-        report.append("❌ Ошибки: " + "; ".join(failed))
-    await bot.send_message(msg.chat.id, "\n".join(report))
+        report.append("Ошибки: " + "; ".join(failed))
+    await bot.send_message(msg.chat.id, "\n".join(report) if report else "Нечего публиковать.")
 
 
 @bot.message_handler(commands=["send"], is_admin=True)
@@ -144,7 +135,7 @@ async def cmd_send(msg: Message):
     parts = msg.text.split(maxsplit=1)
     text = parts[1].strip() if len(parts) > 1 else ""
     if not text:
-        await bot.send_message(msg.chat.id, "Использование: <code>/send текст сообщения</code>")
+        await bot.send_message(msg.chat.id, "Использование: /send твой текст")
         return
     if len(text) > MAX_MESSAGE_LEN:
         await bot.send_message(msg.chat.id, f"Слишком длинно: максимум {MAX_MESSAGE_LEN} символов.")
@@ -154,7 +145,6 @@ async def cmd_send(msg: Message):
     if not recipients:
         await bot.send_message(msg.chat.id, "Некому отправлять: активных пользователей нет.")
         return
-
     app.state.set(msg.chat.id, {"type": "send", "text": text, "recipients": recipients})
     await bot.send_message(
         msg.chat.id,

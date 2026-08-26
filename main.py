@@ -22,18 +22,18 @@ import handlers_callbacks  # noqa: E402,F401
 logger = logging.getLogger(__name__)
 
 USER_COMMANDS = [
-    BotCommand("start", "🚀 Старт"),
-    BotCommand("schedule", "🗓️ Расписание"),
-    BotCommand("bell", "🔔 Звонки"),
-    BotCommand("mailing", "📣 Подписка на обновления"),
-    BotCommand("cancel", "✖️ Отменить ввод"),
+    BotCommand("start", "🚀Старт"),
+    BotCommand("schedule", "🗓️Расписание"),
+    BotCommand("bell", "🔔Звонки"),
+    BotCommand("mailing", "📣Рассылка"),
+    BotCommand("cancel", "✖️Отменить ввод"),
 ]
 
 ADMIN_COMMANDS = USER_COMMANDS + [
-    BotCommand("stats", "📊 Статистика"),
-    BotCommand("status", "📋 Состояние расписания"),
-    BotCommand("publish", "📤 Опубликовать расписание"),
-    BotCommand("send", "📨 Рассылка вручную"),
+    BotCommand("stats", "📊Статистика"),
+    BotCommand("status", "📋Состояние расписания"),
+    BotCommand("publish", "📤Опубликовать расписание"),
+    BotCommand("send", "📨Рассылка вручную"),
 ]
 
 ALLOWED_UPDATES = ["message", "callback_query", "pre_checkout_query"]

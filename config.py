@@ -145,7 +145,7 @@ CALLS = {
 
 CALLS_TITLES = {"monday": "Понедельник", "thursday": "Четверг", "other": "Другие дни"}
 
-PAGE_SIZE = 25
+PAGE_SIZE = 50
 CACHE_TTL = 3600
 CACHE_MAX_DAYS = 2
 RENDER_DPI = 200

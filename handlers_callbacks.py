@@ -43,8 +43,8 @@ PAGE_SOURCES = {
     "subs": ("Подписчики", "count_subscribers", "page_subscribers"),
 }
 
-MAIL_ON = "✅ Вы подписаны — пришлём расписание, как только оно обновится."
-MAIL_OFF = "🔕 Вы не подписаны на обновления расписания."
+MAIL_ON = "Вы подписаны✅"
+MAIL_OFF = "Вы не подписаны"
 
 
 async def _edit(call: CallbackQuery, text: str, markup=None) -> None:
@@ -69,19 +69,19 @@ async def cb_noop(call: CallbackQuery):
 @bot.callback_query_handler(func=lambda call: call.data == MENU)
 async def cb_menu(call: CallbackQuery, is_admin: bool = False):
     await bot.answer_callback_query(call.id)
-    await _edit(call, "Главное меню 👇", menu_main(is_admin))
+    await _edit(call, "Выберите кнопку ниже👇", menu_main(is_admin))
 
 
 @bot.callback_query_handler(func=lambda call: call.data == SCHEDULE)
 async def cb_schedule(call: CallbackQuery):
     await bot.answer_callback_query(call.id)
-    await _edit(call, "Выберите день 👇", menu_days())
+    await _edit(call, "Выберите день👇", menu_days())
 
 
 @bot.callback_query_handler(func=lambda call: call.data == BELL)
 async def cb_bell(call: CallbackQuery):
     await bot.answer_callback_query(call.id)
-    await _edit(call, "🔔 Расписание звонков", menu_calls())
+    await _edit(call, "Информация о звонках🔔", menu_calls())
 
 
 @bot.callback_query_handler(func=None, config=CALLS_CB.filter())
@@ -125,7 +125,7 @@ async def cb_day(call: CallbackQuery):
     chat_id = call.message.chat.id
     meta = SCHEDULE_FILES[day]
     cached = app.cache.get(day)
-    await bot.answer_callback_query(call.id, "" if cached else "Загружаю расписание…")
+    await bot.answer_callback_query(call.id, "" if cached else "Загружаю...")
     if cached is None:
         await bot.send_chat_action(chat_id, "upload_photo")
 
@@ -135,7 +135,7 @@ async def cb_day(call: CallbackQuery):
         logger.warning("расписание %s недоступно: %s", day, exc)
         await bot.send_message(
             chat_id,
-            f'Не удалось загрузить расписание.\n📎 <a href="{meta["link"]}">Открыть исходный файл</a>',
+            f'❌Ошибка\n<a href="{meta["link"]}">Открыть</a>',
             reply_markup=menu_days(),
         )
         return
@@ -186,11 +186,11 @@ async def cb_send_confirm(call: CallbackQuery):
         return
 
     await bot.answer_callback_query(call.id)
-    await _edit(call, "📣 Рассылка запущена…")
+    await _edit(call, "📣...")
     report = await app.broadcaster.broadcast_text(state["recipients"], state["text"])
     await bot.send_message(
         call.message.chat.id,
-        f"✅ Готово\nДоставлено: <b>{report.sent}</b>\nНе доставлено: <b>{report.failed}</b>",
+        f"✅Готово\nОтправлено: {report.sent}\nОшибок: {report.failed}",
     )
 
 
@@ -198,7 +198,7 @@ async def cb_send_confirm(call: CallbackQuery):
 async def cb_send_cancel(call: CallbackQuery):
     app.state.pop(call.message.chat.id)
     await bot.answer_callback_query(call.id, "Отменено")
-    await _edit(call, "❌ Рассылка отменена.")
+    await _edit(call, "❌Отменено")
 
 
 @bot.callback_query_handler(

@@ -11,14 +11,14 @@ from keyboards import ASK_STARS
 logger = logging.getLogger(__name__)
 
 PAYLOAD = "donate_stars"
-AMOUNT_HINT = f"Введите целое число от {STARS_MIN} до {STARS_MAX}, либо /cancel."
+AMOUNT_HINT = f"Введите число от {STARS_MIN} до {STARS_MAX}."
 
 
 @bot.callback_query_handler(func=lambda call: call.data == ASK_STARS)
 async def ask_stars(call: CallbackQuery):
     app.state.set(call.message.chat.id, {"type": "stars"})
     await bot.answer_callback_query(call.id)
-    await bot.send_message(call.message.chat.id, f"Сколько ⭐️ отправить?\n\n{AMOUNT_HINT}")
+    await bot.send_message(call.message.chat.id, "Введите количество ⭐️:")
 
 
 @bot.message_handler(
@@ -40,7 +40,7 @@ async def stars_amount(msg: Message):
     await bot.send_invoice(
         msg.chat.id,
         title="Поддержать автора",
-        description="Спасибо, что помогаете боту жить",
+        description="Буду благодарен за поддержку",
         invoice_payload=PAYLOAD,
         provider_token="",
         currency="XTR",
@@ -60,7 +60,7 @@ async def checkout(query: PreCheckoutQuery):
 @bot.message_handler(content_types=["successful_payment"])
 async def got_payment(msg: Message):
     payment = msg.successful_payment
-    await bot.send_message(msg.chat.id, f"Спасибо за поддержку ({payment.total_amount} ⭐)!")
+    await bot.send_message(msg.chat.id, f"Спасибо за поддержку ({payment.total_amount}⭐)!")
     logger.info(
         "донат: user_id=%s, %s звёзд, charge_id=%s",
         msg.from_user.id,
