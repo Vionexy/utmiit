@@ -10,3 +10,8 @@ bot.log
 bot.log.*
 _backup_original/
 
+# локальная разработка, в репозиторий не нужно
+tests/
+pytest.ini
+requirements-dev.txt
+
