@@ -24,7 +24,8 @@ LOG_FILE = os.getenv("LOG_FILE", "bot.log")
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUPS = 3
 
-LOCAL_TZ = timezone(timedelta(hours=int(os.getenv("TZ_OFFSET_HOURS", "7"))))
+# Кемерово, UTC+7, без переходов на летнее время
+LOCAL_TZ = timezone(timedelta(hours=7), "Кемерово")
 
 
 def now_local() -> datetime:
@@ -32,6 +33,7 @@ def now_local() -> datetime:
 
 
 def today_local() -> str:
+    """Дата по Кемерову — по ней считаются посещения за сегодня."""
     return now_local().strftime("%Y-%m-%d")
 
 

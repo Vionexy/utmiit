@@ -91,7 +91,37 @@ class Database:
         db = await self.connect()
         for statement in SCHEMA:
             await db.execute(statement)
+        await self._fix_interactions(db)
         await db.commit()
+
+    async def _fix_interactions(self, db: aiosqlite.Connection) -> None:
+        """Старая таблица создавалась без ключа, поэтому одно и то же
+        посещение писалось столько раз, сколько человек нажимал кнопки."""
+        cur = await db.execute("PRAGMA index_list(interactions)")
+        if any(row["origin"] == "pk" for row in await cur.fetchall()):
+            return
+
+        await db.execute("ALTER TABLE interactions RENAME TO interactions_old")
+        await db.execute(
+            """CREATE TABLE interactions (
+                   chat_id INTEGER NOT NULL,
+                   interaction_date TEXT NOT NULL,
+                   PRIMARY KEY (chat_id, interaction_date)
+               ) WITHOUT ROWID"""
+        )
+        await db.execute(
+            """INSERT INTO interactions (chat_id, interaction_date)
+               SELECT DISTINCT chat_id, interaction_date FROM interactions_old"""
+        )
+        cur = await db.execute("SELECT COUNT(*) FROM interactions_old")
+        before = (await cur.fetchone())[0]
+        cur = await db.execute("SELECT COUNT(*) FROM interactions")
+        after = (await cur.fetchone())[0]
+        await db.execute("DROP TABLE interactions_old")
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_date ON interactions(interaction_date)"
+        )
+        logger.info("посещения пересобраны: было %s строк, осталось %s", before, after)
 
     # --- пользователи ---------------------------------------------------
 
@@ -172,7 +202,7 @@ class Database:
             """SELECT
                    (SELECT COUNT(*) FROM all_users) AS total,
                    (SELECT COUNT(*) FROM subscribers) AS subs,
-                   (SELECT COUNT(*) FROM interactions WHERE interaction_date=?) AS daily""",
+                   (SELECT COUNT(DISTINCT chat_id) FROM interactions WHERE interaction_date=?) AS daily""",
             (today_local(),),
         )
         row = await cur.fetchone()

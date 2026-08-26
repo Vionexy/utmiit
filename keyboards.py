@@ -123,7 +123,7 @@ def stats_text(stats: Stats) -> str:
         "📊Статистика:\n\n"
         f"Всего: {stats.total}\n"
         f"Подписаны: {stats.subscribers}\n"
-        f"Сегодня: {stats.daily}"
+        f"Заходили сегодня: {stats.daily}"
     )
 
 
