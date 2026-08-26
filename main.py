@@ -12,7 +12,7 @@ from telebot.types import BotCommand, BotCommandScopeChat
 import config
 from app_context import app, bot
 from check_loop import check_loop
-from middleware import IsAdmin
+from middleware import CallbackDataFilter, IsAdmin
 
 # хендлеры регистрируются при импорте
 import handlers_commands  # noqa: E402,F401
@@ -91,6 +91,7 @@ async def main() -> None:
     config.validate()
     bot.exception_handler = PollingExceptionHandler()
     bot.add_custom_filter(IsAdmin())
+    bot.add_custom_filter(CallbackDataFilter())
     app.setup_middlewares()
 
     await app.db.init_schema()

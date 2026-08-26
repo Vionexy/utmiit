@@ -37,7 +37,7 @@ def _menu_row() -> list[InlineKeyboardButton]:
 
 def menu_main(is_admin: bool = False) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
-    markup.row(_button("🗓️Расписание", SCHEDULE, style="primary"))
+    markup.row(_button("🗓️Расписание", SCHEDULE))
     markup.row(_button("🔔Звонки", BELL), _button("📣Рассылка", MAILING))
     if is_admin:
         markup.row(_button("📊Статистика", ADMIN_STATS))
@@ -58,14 +58,9 @@ def menu_days(show_stars: bool = False) -> InlineKeyboardMarkup:
     return markup
 
 
-def menu_calls(active: str | None = None) -> InlineKeyboardMarkup:
+def menu_calls() -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup(row_width=3)
-    markup.add(
-        *(
-            _button(title, CALLS_CB.new(kind=kind), style="primary" if kind == active else None)
-            for kind, title in CALLS_TITLES.items()
-        )
-    )
+    markup.add(*(_button(title, CALLS_CB.new(kind=kind)) for kind, title in CALLS_TITLES.items()))
     markup.row(*_menu_row())
     return markup
 

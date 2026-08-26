@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 
-from telebot.asyncio_filters import SimpleCustomFilter
+from telebot.asyncio_filters import AdvancedCustomFilter, SimpleCustomFilter
 from telebot.asyncio_handler_backends import BaseMiddleware, CancelUpdate
 from telebot.types import CallbackQuery, Message, User
 
@@ -26,6 +26,14 @@ class IsAdmin(SimpleCustomFilter):
     async def check(self, message: Message | CallbackQuery) -> bool:
         user = message.from_user
         return user is not None and user.id == ADMIN_ID
+
+
+class CallbackDataFilter(AdvancedCustomFilter):
+    # без него хендлеры с config=CallbackData(...).filter() не срабатывают
+    key = "config"
+
+    async def check(self, call: CallbackQuery, config) -> bool:
+        return config.check(call)
 
 
 class UserTracker:

@@ -26,8 +26,7 @@ SCHEMA = (
            first_name TEXT,
            last_name TEXT,
            username TEXT,
-           first_interaction_date TEXT NOT NULL,
-           is_blocked INTEGER NOT NULL DEFAULT 0
+           first_interaction_date TEXT NOT NULL
        )""",
     # PRIMARY KEY по паре, чтобы не плодить строки за один день
     """CREATE TABLE IF NOT EXISTS interactions (
@@ -61,7 +60,6 @@ class Stats:
     total: int
     subscribers: int
     daily: int
-    blocked: int
 
 
 class Database:
@@ -93,15 +91,7 @@ class Database:
         db = await self.connect()
         for statement in SCHEMA:
             await db.execute(statement)
-        await self._migrate(db)
         await db.commit()
-
-    async def _migrate(self, db: aiosqlite.Connection) -> None:
-        cur = await db.execute("PRAGMA table_info(all_users)")
-        columns = {row["name"] for row in await cur.fetchall()}
-        if "is_blocked" not in columns:
-            await db.execute("ALTER TABLE all_users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0")
-            logger.info("миграция: добавлена колонка all_users.is_blocked")
 
     # --- пользователи ---------------------------------------------------
 
@@ -116,20 +106,13 @@ class Database:
                ON CONFLICT(chat_id) DO UPDATE SET
                    first_name = excluded.first_name,
                    last_name = excluded.last_name,
-                   username = excluded.username,
-                   is_blocked = 0""",
+                   username = excluded.username""",
             [(r.chat_id, r.first_name, r.last_name, r.username, today) for r in records],
         )
         await db.executemany(
             "INSERT OR IGNORE INTO interactions (chat_id, interaction_date) VALUES (?,?)",
             [(r.chat_id, today) for r in records],
         )
-        await db.commit()
-
-    async def mark_blocked(self, chat_id: int) -> None:
-        db = await self.connect()
-        await db.execute("UPDATE all_users SET is_blocked=1 WHERE chat_id=?", (chat_id,))
-        await db.execute("DELETE FROM subscribers WHERE chat_id=?", (chat_id,))
         await db.commit()
 
     async def is_subscribed(self, chat_id: int) -> bool:
@@ -151,14 +134,10 @@ class Database:
         await db.commit()
 
     async def get_subscriber_ids(self) -> list[int]:
-        return await self._fetch_ids(
-            """SELECT s.chat_id FROM subscribers s
-               LEFT JOIN all_users u ON u.chat_id = s.chat_id
-               WHERE COALESCE(u.is_blocked, 0) = 0"""
-        )
+        return await self._fetch_ids("SELECT chat_id FROM subscribers")
 
-    async def get_active_user_ids(self) -> list[int]:
-        return await self._fetch_ids("SELECT chat_id FROM all_users WHERE is_blocked=0")
+    async def get_all_user_ids(self) -> list[int]:
+        return await self._fetch_ids("SELECT chat_id FROM all_users")
 
     async def _fetch_ids(self, query: str) -> list[int]:
         db = await self.connect()
@@ -193,14 +172,11 @@ class Database:
             """SELECT
                    (SELECT COUNT(*) FROM all_users) AS total,
                    (SELECT COUNT(*) FROM subscribers) AS subs,
-                   (SELECT COUNT(*) FROM all_users WHERE is_blocked=1) AS blocked,
                    (SELECT COUNT(*) FROM interactions WHERE interaction_date=?) AS daily""",
             (today_local(),),
         )
         row = await cur.fetchone()
-        return Stats(
-            total=row["total"], subscribers=row["subs"], daily=row["daily"], blocked=row["blocked"]
-        )
+        return Stats(total=row["total"], subscribers=row["subs"], daily=row["daily"])
 
     async def count_users(self) -> int:
         return await self._count("SELECT COUNT(*) FROM all_users")

@@ -79,8 +79,8 @@ class Broadcaster:
             return await self._deliver(coro_factory)
         except ApiTelegramException as exc:
             if exc.error_code in PERMANENT_ERRORS:
-                logger.info("chat_id=%s недоступен (%s), помечаю заблокированным", chat_id, exc.description)
-                await self._db.mark_blocked(chat_id)
+                logger.info("chat_id=%s недоступен (%s), убираю из подписок", chat_id, exc.description)
+                await self._db.del_sub(chat_id)
             else:
                 logger.warning("отправка в chat_id=%s не удалась: %s", chat_id, exc)
             return False

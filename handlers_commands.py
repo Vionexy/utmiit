@@ -141,9 +141,9 @@ async def cmd_send(msg: Message):
         await bot.send_message(msg.chat.id, f"Слишком длинно: максимум {MAX_MESSAGE_LEN} символов.")
         return
 
-    recipients = await app.db.get_active_user_ids()
+    recipients = await app.db.get_all_user_ids()
     if not recipients:
-        await bot.send_message(msg.chat.id, "Некому отправлять: активных пользователей нет.")
+        await bot.send_message(msg.chat.id, "Некому отправлять: пользователей нет.")
         return
     app.state.set(msg.chat.id, {"type": "send", "text": text, "recipients": recipients})
     await bot.send_message(

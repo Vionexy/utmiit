@@ -10,7 +10,6 @@ from app_context import app, bot
 from config import CALLS, PAGE_SIZE, SCHEDULE_FILES
 from keyboards import (
     ADMIN_STATS,
-    ASK_STARS,
     BELL,
     CALLS_CB,
     DAY_CB,
@@ -92,7 +91,7 @@ async def cb_calls(call: CallbackQuery):
         await bot.answer_callback_query(call.id, "Неизвестный раздел", show_alert=True)
         return
     await bot.answer_callback_query(call.id)
-    await _edit(call, text, menu_calls(active=kind))
+    await _edit(call, text, menu_calls())
 
 
 @bot.callback_query_handler(func=lambda call: call.data == MAILING)
