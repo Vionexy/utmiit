@@ -7,22 +7,32 @@ from typing import Any
 class StateStore:
     def __init__(self, ttl_seconds: int = 600) -> None:
         self._ttl = ttl_seconds
-        self._data: dict[int, dict[str, Any]] = {}
-        self._timestamps: dict[int, float] = {}
+        self._data: dict[int, tuple[float, dict[str, Any]]] = {}
 
     def set(self, chat_id: int, value: dict[str, Any]) -> None:
-        self._data[chat_id] = value
-        self._timestamps[chat_id] = time.time()
+        self._data[chat_id] = (time.monotonic(), value)
 
     def get(self, chat_id: int) -> dict[str, Any]:
-        self._expire_if_needed(chat_id)
-        return self._data.get(chat_id, {})
+        entry = self._data.get(chat_id)
+        if entry is None:
+            return {}
+        created_at, value = entry
+        if time.monotonic() - created_at > self._ttl:
+            del self._data[chat_id]
+            return {}
+        return value
 
-    def pop(self, chat_id: int) -> None:
-        self._data.pop(chat_id, None)
-        self._timestamps.pop(chat_id, None)
+    def pop(self, chat_id: int) -> dict[str, Any]:
+        entry = self._data.pop(chat_id, None)
+        return entry[1] if entry else {}
 
-    def _expire_if_needed(self, chat_id: int) -> None:
-        ts = self._timestamps.get(chat_id)
-        if ts is not None and time.time() - ts > self._ttl:
-            self.pop(chat_id)
+    def purge_expired(self) -> int:
+        deadline = time.monotonic() - self._ttl
+        stale = [chat_id for chat_id, (created_at, _) in self._data.items() if created_at < deadline]
+        for chat_id in stale:
+            del self._data[chat_id]
+        return len(stale)
+
+    def __len__(self) -> int:
+        return len(self._data)
+

@@ -3,58 +3,23 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-from io import BytesIO
 
-import fitz
 import httpx
-from PIL import Image
+import pymupdf
 
-from cache_store import ScheduleCache
-from config import DAY_MAP, SCHEDULE_FILES
+from cache_store import CacheEntry, ScheduleCache
+from config import DAY_MAP, RENDER_DPI, SCHEDULE_FILES
 from db import Database
-from github_publish import publish_schedule_to_github
+from github_publish import GithubPublisher
 
 logger = logging.getLogger(__name__)
 
-
-async def download_pdf(file_id: str) -> tuple[bytes | None, str | None]:
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
-    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/pdf"}
-    last_error: str | None = None
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        for attempt in range(3):
-            try:
-                resp = await client.get(url, headers=headers)
-                if resp.status_code == 429:
-                    await asyncio.sleep(2 ** attempt)
-                    continue
-                resp.raise_for_status()
-                if resp.content.startswith(b"%PDF"):
-                    return resp.content, None
-                return None, "ответ не является PDF"
-            except Exception as exc:
-                last_error = str(exc)
-                logger.warning("download_pdf: попытка %s для %s не удалась: %s", attempt + 1, file_id, exc)
-                if attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
-    return None, last_error or "не удалось скачать после 3 попыток"
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/pdf"}
 
 
-def make_images(pdf_bytes: bytes) -> list[BytesIO]:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    images: list[BytesIO] = []
-    try:
-        for page_index in range(len(doc)):
-            page = doc.load_page(page_index)
-            pix = page.get_pixmap(dpi=300)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            buf = BytesIO()
-            img.save(buf, format="PNG", optimize=False)
-            buf.seek(0)
-            images.append(buf)
-    finally:
-        doc.close()
-    return images
+class ScheduleError(RuntimeError):
+    pass
 
 
 def calc_hash(data: bytes) -> str:
@@ -64,38 +29,81 @@ def calc_hash(data: bytes) -> str:
 def parse_day(raw: str | None) -> str | None:
     if not raw:
         return None
-    return DAY_MAP.get(raw.strip().lower(), raw.strip().lower())
+    normalized = raw.strip().lower()
+    return DAY_MAP.get(normalized, normalized)
 
 
-async def _fetch_and_render(day: str) -> tuple[list[BytesIO], str]:
-    pdf_bytes, error = await download_pdf(SCHEDULE_FILES[day]["id"])
-    if not pdf_bytes:
-        raise RuntimeError(f"{day}: не удалось скачать PDF ({error})")
-    images = await asyncio.to_thread(make_images, pdf_bytes)
-    return images, calc_hash(pdf_bytes)
+def render_pages(pdf_bytes: bytes, dpi: int = RENDER_DPI) -> list[bytes]:
+    # cpu-bound, гонять через asyncio.to_thread
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        if doc.page_count == 0:
+            raise ScheduleError("в PDF нет страниц")
+        return [doc.load_page(i).get_pixmap(dpi=dpi).tobytes("png") for i in range(doc.page_count)]
 
 
 class ScheduleService:
-    def __init__(self, db: Database, cache: ScheduleCache) -> None:
+    def __init__(self, db: Database, cache: ScheduleCache, publisher: GithubPublisher) -> None:
         self._db = db
         self._cache = cache
+        self._publisher = publisher
+        self._client: httpx.AsyncClient | None = None
 
-    async def load_day(self, day: str) -> tuple[list[BytesIO], str, str]:
-        images, file_hash = await _fetch_and_render(day)
-        return images, file_hash, SCHEDULE_FILES[day]["link"]
+    async def _http(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0, connect=10.0),
+                follow_redirects=True,
+                headers=DOWNLOAD_HEADERS,
+            )
+        return self._client
 
-    async def push_day(self, day: str, now_str: str) -> int:
-        images, file_hash, link = await self.load_day(day)
-        self._cache.set(day, images, file_hash)
-        await publish_schedule_to_github(day, images, file_hash, link)
-        await self._db.save_hash(day, file_hash, now_str)
-        return len(images)
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
-    async def get_or_fetch(self, day: str) -> list[BytesIO]:
+    async def download_pdf(self, file_id: str) -> bytes:
+        client = await self._http()
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        last_error = "неизвестная ошибка"
+        for attempt in range(DOWNLOAD_ATTEMPTS):
+            try:
+                resp = await client.get(url)
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    last_error = f"HTTP {resp.status_code}"
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                resp.raise_for_status()
+                if not resp.content.startswith(b"%PDF"):
+                    # drive отдаёт html-заглушку, если файл закрыт
+                    raise ScheduleError("Google Drive вернул не PDF (проверь доступ к файлу)")
+                return resp.content
+            except ScheduleError:
+                raise
+            except httpx.HTTPError as exc:
+                last_error = str(exc)
+                logger.warning("download_pdf %s: попытка %s не удалась: %s", file_id, attempt + 1, exc)
+                if attempt < DOWNLOAD_ATTEMPTS - 1:
+                    await asyncio.sleep(2 ** attempt)
+        raise ScheduleError(f"не удалось скачать PDF: {last_error}")
+
+    async def fetch_pages(self, day: str) -> tuple[list[bytes], str]:
+        pdf_bytes = await self.download_pdf(SCHEDULE_FILES[day]["id"])
+        pages = await asyncio.to_thread(render_pages, pdf_bytes)
+        return pages, calc_hash(pdf_bytes)
+
+    async def get_or_fetch(self, day: str) -> CacheEntry:
         async with self._cache.lock(day):
             cached = self._cache.get(day)
-            if cached:
+            if cached is not None:
                 return cached
-            images, file_hash = await _fetch_and_render(day)
-            self._cache.set(day, images, file_hash)
-            return images
+            pages, file_hash = await self.fetch_pages(day)
+            return self._cache.set(day, pages, file_hash)
+
+    async def publish(self, day: str, published_at: str) -> int:
+        async with self._cache.lock(day):
+            pages, file_hash = await self.fetch_pages(day)
+            self._cache.set(day, pages, file_hash)
+        await self._publisher.publish_day(day, pages, file_hash, SCHEDULE_FILES[day]["link"])
+        await self._db.save_hash(day, file_hash, published_at)
+        return len(pages)
+
